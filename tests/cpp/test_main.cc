@@ -15,5 +15,8 @@ int main(int argc, char ** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
   auto rmm_alloc = xgboost::SetUpRMMResourceForCppTests(argc, argv);
+
+  testing::GTEST_FLAG(filter) = "Learner.JsonModelIO";
+
   return RUN_ALL_TESTS();
 }

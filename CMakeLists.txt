@@ -39,7 +39,7 @@ Should only be used for debugging." OFF)
 option(FORCE_COLORED_OUTPUT "Force colored output from compilers, useful when ninja is used instead of make." OFF)
 option(ENABLE_ALL_WARNINGS "Enable all compiler warnings. Only effective for GCC/Clang" OFF)
 option(LOG_CAPI_INVOCATION "Log all C API invocations for debugging" OFF)
-option(GOOGLE_TEST "Build google tests" OFF)
+option(GOOGLE_TEST "Build google tests" ON)
 option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_DEVICE_DEBUG "Generate CUDA device debug info." OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
@@ -324,18 +324,58 @@ if (GOOGLE_TEST)
     NAME TestXGBoostLib
     COMMAND testxgboost
     WORKING_DIRECTORY ${xgboost_BINARY_DIR})
-  # CLI tests
-  configure_file(
-    ${xgboost_SOURCE_DIR}/tests/cli/machine.conf.in
-    ${xgboost_BINARY_DIR}/tests/cli/machine.conf
-    @ONLY)
-  add_test(
-    NAME TestXGBoostCLI
-    COMMAND runxgboost ${xgboost_BINARY_DIR}/tests/cli/machine.conf
-    WORKING_DIRECTORY ${xgboost_BINARY_DIR})
-  set_tests_properties(TestXGBoostCLI
-    PROPERTIES
-    PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
+#  # CLI tests
+#  configure_file(
+#    ${xgboost_SOURCE_DIR}/tests/cli/machine.conf.in
+#    ${xgboost_BINARY_DIR}/tests/cli/machine.conf
+#    @ONLY)
+#  add_test(
+#    NAME TestXGBoostCLI
+#    COMMAND runxgboost ${xgboost_BINARY_DIR}/tests/cli/machine.conf
+#    WORKING_DIRECTORY ${xgboost_BINARY_DIR})
+#  set_tests_properties(TestXGBoostCLI
+#    PROPERTIES
+#    PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
+
+
+
+  # test learner
+#  add_executable(testxgboostlearner)
+#  target_link_libraries(testxgboostlearner PRIVATE objxgboost)
+#  xgboost_target_properties(testxgboostlearner)
+#  xgboost_target_link_libraries(testxgboostlearner)
+#  xgboost_target_defs(testxgboostlearner)
+#
+#  add_subdirectory(${xgboost_SOURCE_DIR}/tests/cpp)
+#
+#  add_test(
+#          NAME TestXGBoostLib
+#          COMMAND testxgboostlearner
+#          WORKING_DIRECTORY ${xgboost_BINARY_DIR})
+
+
+#  find_package(GTest REQUIRED)
+#  include_directories(${GTEST_INCLUDE_DIR})
+#  include_directories(${xgboost_SOURCE_DIR}/include)
+#  include_directories(${xgboost_SOURCE_DIR}/rabit/include)
+#  include_directories(../src/)
+#  add_executable(TestLearner)
+#  add_executable(TestLearner ${xgboost_SOURCE_DIR}/tests/cpp/test_learner.cc)
+#  target_link_libraries(TestLearner k
+#  xgboost_target_properties(TestLearner)
+#  xgboost_target_link_libraries(TestLearner)
+#  xgboost_target_defs(TestLearner)
+#  add_test(
+#          NAME TestLearner
+#          COMMAND TestLearner
+#  )
+#    find_package(GTest REQUIRED)
+#    add_executable(test_learner)
+#    target_link_libraries(test_learner PRIVATE objxgboost)
+#    xgboost_target_properties(Learner)
+#    xgboost_target_link_libraries(Learner)
+#    xgboost_target_defs(Learner)
+
 endif (GOOGLE_TEST)
 
 # For MSVC: Call msvc_use_static_runtime() once again to completely

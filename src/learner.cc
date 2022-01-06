@@ -46,6 +46,8 @@
 #include "common/version.h"
 #include "common/threading_utils.h"
 
+#include <iostream>
+
 namespace {
 
 const char* kMaxDeltaStepDefaultValue = "0.7";
@@ -351,6 +353,8 @@ class LearnerConfiguration : public Learner {
 
     auto task = this->ConfigureTargets();
 
+//    std::cout << "configure: " <<  << std::endl;
+
     // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
     // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
     // keep the stability, we initialize it in binary LoadModel instead of configuration.
@@ -380,6 +384,8 @@ class LearnerConfiguration : public Learner {
 
     // FIXME(trivialfis): Clear the cache once binary IO is gone.
     monitor_.Stop("Configure");
+
+//      std::cout << "end configure: " << obj_->Task().task << std::endl;
   }
 
   virtual PredictionContainer* GetPredictionCache() const {
@@ -639,6 +645,12 @@ class LearnerConfiguration : public Learner {
   }
 
   void ConfigureObjective(LearnerTrainParam const& old, Args* p_args) {
+
+//      std::cout << "begin configure objective: " <<  std::endl;
+//      for (auto &kv : cfg_) {
+//          std::cout << kv.first << " " << kv.second << std::endl;
+//          }
+
     // Once binary IO is gone, NONE of these config is useful.
     if (cfg_.find("num_class") != cfg_.cend() && cfg_.at("num_class") != "0" &&
         tparam_.objective != "multi:softprob") {
@@ -660,7 +672,13 @@ class LearnerConfiguration : public Learner {
     }
     auto& args = *p_args;
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
-    obj_->Configure(args);
+
+
+//      std::cout << "nearly end configure objective: " << tparam_.objective <<  std::endl;
+
+      obj_->Configure(args);
+
+//      std::cout << "0 configure: " << obj_->Task().task << std::endl;
   }
 
   void ConfigureMetrics(Args const& args) {
@@ -780,8 +798,11 @@ class LearnerIO : public LearnerConfiguration {
     gbm_->SaveModel(&gradient_booster);
 
     learner["objective"] = Object();
+//      std::cout << "load json config before: " << learner["objective"] << std::endl;
     auto& objective_fn = learner["objective"];
+//      std::cout << "load json config after: " << learner["objective"] << std::endl;
     obj_->SaveConfig(&objective_fn);
+      std::cout << "save model load json config after1: " << learner["objective"] << std::endl;
 
     learner["attributes"] = Object();
     for (auto const& kv : attributes_) {
@@ -1091,6 +1112,10 @@ class LearnerImpl : public LearnerIO {
     this->SaveConfig(&config);
     out_impl->mparam_ = this->mparam_;
     out_impl->attributes_ = this->attributes_;
+//    std::cout << "this attributes: " << std::endl;
+//    for (auto& kv: this->attributes_) {
+//        std::cout << kv.first << " " << kv.second << std::endl;
+//        }
     out_impl->SetFeatureNames(this->feature_names_);
     out_impl->SetFeatureTypes(this->feature_types_);
     out_impl->LoadConfig(config);
@@ -1110,7 +1135,43 @@ class LearnerImpl : public LearnerIO {
     return out_impl;
   }
 
+  std::shared_ptr<DMatrix> GenerateHalfDMatrix(std::shared_ptr<DMatrix> train_ptr) {
+      float percent = 0.5;
+
+      auto v = gpair_.HostVector();
+
+      std::vector<int32_t> idx(v.size());
+      iota(idx.begin(), idx.end(), 0);
+      stable_sort(idx.begin(), idx.end(),
+                      [&v](size_t i1, size_t i2) {return std::abs(v[i1].GetGrad()) < std::abs(v[i2].GetGrad());});
+      std::vector<int32_t> new_idx(idx.begin(), idx.begin() + (idx.size()  + 1) / 2);
+
+      std::shared_ptr<DMatrix> new_matrix(train_ptr->Slice(new_idx));
+      return new_matrix;
+  }
+
+    std::shared_ptr<DMatrix> TrySecondHalfUpdateOneIter(std::shared_ptr<DMatrix> old_train_ptr, int iter, PredictionCacheEntry *out_preds) {
+      std::cout << "begin TrySecondHalfUpdateOneIter" << std::endl;
+
+      // reconstruct dmatrix to train
+      auto train_ptr = GenerateHalfDMatrix(old_train_ptr);
+
+      auto local_cache = this->GetPredictionCache();
+      auto& predt = local_cache->Cache(train_ptr, generic_parameters_.gpu_id);
+
+      monitor_.Start("PredictRaw");
+      this->PredictRaw(train_ptr.get(), &predt, true, 0, 0);
+      TrainingObserver::Instance().Observe(predt.predictions, "Predictions");
+
+      obj_->GetGradient(predt.predictions, train_ptr->Info(), iter, &gpair_);
+
+      out_preds = &predt;
+      return train_ptr;
+  }
+
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {
+    printf("begin update one iter\n");
+
     monitor_.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);
     this->Configure();
@@ -1129,13 +1190,55 @@ class LearnerImpl : public LearnerIO {
     TrainingObserver::Instance().Observe(predt.predictions, "Predictions");
     monitor_.Stop("PredictRaw");
 
-    monitor_.Start("GetGradient");
+      std::cout << "train info: " ;
+      for (auto data: train->Info().labels.Data()->HostVector() ) {
+          std::cout << data << " ";
+      }
+      std::cout <<  std::endl;
+
+      std::cout << "predict: " ;
+      for (auto predict: predt.predictions.HostVector() ) {
+          std::cout << predict << " ";
+      }
+      std::cout << std::endl;
+
+      std::cout << "before get gradient, gpair: " ;
+      for (auto gp: gpair_.HostVector() ) {
+          std::cout << gp << " ";
+      }
+      std::cout << std::endl;
+
+      monitor_.Start("GetGradient");
+
     obj_->GetGradient(predt.predictions, train->Info(), iter, &gpair_);
-    monitor_.Stop("GetGradient");
+
+      std::cout << "after get gradient, gpair: ";
+      for (auto gp: gpair_.HostVector() ) {
+          std::cout << gp << " ";
+      }
+      std::cout << std::endl;
+
+      auto train_ptr = train;
+    if ((cfg_.find("foo") != cfg_.end()) && (cfg_.at("foo") == "bar")){
+        train_ptr = TrySecondHalfUpdateOneIter(train, iter, &predt);
+
+        std::cout << "after 2nd get gradient, gpair: ";
+        for (auto gp: gpair_.HostVector() ) {
+            std::cout << gp << " ";
+        }
+        std::cout << std::endl;
+    } else {
+        // do nothing
+    }
+
+      monitor_.Stop("GetGradient");
     TrainingObserver::Instance().Observe(gpair_, "Gradients");
 
-    gbm_->DoBoost(train.get(), &gpair_, &predt);
+//    gbm_->DoBoost(train.get(), &gpair_, &predt);
+      gbm_->DoBoost(train_ptr.get(), &gpair_, &predt);
     monitor_.Stop("UpdateOneIter");
+
+    printf("end update one iter\n");
   }
 
   void BoostOneIter(int iter, std::shared_ptr<DMatrix> train,
@@ -1321,6 +1424,8 @@ class LearnerImpl : public LearnerIO {
   static int32_t constexpr kRandSeedMagic = 127;
   // gradient pairs
   HostDeviceVector<GradientPair> gpair_;
+
+  HostDeviceVector<GradientPair> gpair_2nd_half_;
   /*! \brief Temporary storage to prediction.  Useful for storing data transformed by
    *  objective function */
   PredictionContainer output_predictions_;

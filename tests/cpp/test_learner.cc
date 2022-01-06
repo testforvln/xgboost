@@ -14,6 +14,8 @@
 #include "../../src/common/random.h"
 #include "../../src/common/linalg_op.h"
 
+#include <iostream>
+
 namespace xgboost {
 TEST(Learner, Basic) {
   using Arg = std::pair<std::string, std::string>;
@@ -30,6 +32,8 @@ TEST(Learner, Basic) {
   static_assert(std::is_integral<decltype(major)>::value, "Wrong major version type");
   static_assert(std::is_integral<decltype(minor)>::value, "Wrong minor version type");
   static_assert(std::is_integral<decltype(patch)>::value, "Wrong patch version type");
+
+  printf("test basic");
 }
 
 TEST(Learner, ParameterValidation) {
@@ -140,10 +144,13 @@ TEST(Learner, JsonModelIO) {
   // Test of comparing JSON object directly.
   size_t constexpr kRows = 8;
   int32_t constexpr kIters = 4;
+//  int32_t constexpr kIters = 20;
 
-  std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{kRows, 10, 0}.GenerateDMatrix()};
+//  std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{kRows, 10, 0}.GenerateDMatrix()};
+  std::shared_ptr<DMatrix> p_dmat{RandomDataGenerator{kRows, 10, 0.5}.GenerateDMatrix(true, true, 1)};
   p_dmat->Info().labels.Reshape(kRows);
   CHECK_NE(p_dmat->Info().num_col_, 0);
+
 
   {
     std::unique_ptr<Learner> learner { Learner::Create({p_dmat}) };
@@ -160,6 +167,8 @@ TEST(Learner, JsonModelIO) {
     auto loaded_str = common::LoadSequentialFile(tmpdir.path + "/model.json");
     Json loaded = Json::Load(StringView{loaded_str.c_str(), loaded_str.size()});
 
+    std::cout << "load json config: " << loaded << std::endl;
+
     learner->LoadModel(loaded);
     learner->Configure();
 
@@ -170,10 +179,17 @@ TEST(Learner, JsonModelIO) {
 
   {
     std::unique_ptr<Learner> learner { Learner::Create({p_dmat}) };
+      learner->SetParam("foo", "bar");
     for (int32_t iter = 0; iter < kIters; ++iter) {
       learner->UpdateOneIter(iter, p_dmat);
     }
-    learner->SetAttr("best_score", "15.2");
+
+//      learner->SetParams({{"foo", "bar"}, {emetric, "auc"}, {emetric, "entropy"}, {emetric, "KL"}});
+//      learner->SetParam("foo", "bar");
+//      auto attr_names = learner->GetConfigurationArguments();
+//      ASSERT_EQ(attr_names.at("foo"), "bar");
+
+      learner->SetAttr("best_score", "15.2");
 
     Json out { Object() };
     learner->SaveModel(&out);

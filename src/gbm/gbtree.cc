@@ -29,6 +29,8 @@
 #include "../common/timer.h"
 #include "../common/threading_utils.h"
 
+#include <iostream>
+
 namespace xgboost {
 namespace gbm {
 
@@ -236,6 +238,7 @@ void GBTree::DoBoost(DMatrix* p_fmat,
        static_cast<size_t>(ngroup)},
       device};
   CHECK_NE(ngroup, 0);
+//  std::cout << " ngroup: " << ngroup << std::endl;
   if (ngroup == 1) {
     std::vector<std::unique_ptr<RegTree>> ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &ret);
@@ -484,6 +487,7 @@ void GBTree::PredictBatch(DMatrix* p_fmat,
                           bool,
                           unsigned layer_begin,
                           unsigned layer_end) {
+//    printf("begin predict gbtree batch \n");
   CHECK(configured_);
   if (layer_end == 0) {
     layer_end = this->BoostedRounds();
@@ -524,9 +528,10 @@ void GBTree::PredictBatch(DMatrix* p_fmat,
     uint32_t delta = layer_end - out_preds->version;
     out_preds->Update(delta);
   }
+//    printf("end predict gbtree batch \n");
 }
 
-std::unique_ptr<Predictor> const &
+        std::unique_ptr<Predictor> const &
 GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
                      DMatrix *f_dmat) const {
   CHECK(configured_);
